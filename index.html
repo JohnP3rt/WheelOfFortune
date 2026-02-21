@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Fortune Wheel - Bold Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --red: #ff3e3e; 
+            --blue: #3e82ff; 
+            --black: #0a0a0c;
+            --panel: rgba(15, 15, 20, 0.98);
+        }
+        body {
+            font-family: 'Inter', sans-serif; margin: 0;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #050505 100%);
+            color: white; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden;
+        }
+
+        /* --- SIDEBAR CONFIG --- */
+        #menu-toggle {
+            position: fixed; top: 30px; left: 30px; z-index: 1000;
+            cursor: pointer; background: var(--panel); border: 1px solid rgba(255,255,255,0.1);
+            padding: 15px; border-radius: 50%; backdrop-filter: blur(10px); transition: 0.3s;
+        }
+        #menu-toggle:hover { border-color: var(--blue); transform: scale(1.1); }
+        .bar { width: 20px; height: 2px; background: var(--blue); margin: 4px 0; }
+
+        .sidebar {
+            position: fixed; top: 0; left: -400px; width: 350px; height: 100%;
+            background: var(--panel); backdrop-filter: blur(25px);
+            padding: 90px 25px 30px; z-index: 900; transition: 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            border-right: 1px solid var(--blue); overflow-y: auto;
+        }
+        .sidebar.open { left: 0; }
+
+        /* --- WHEEL UI --- */
+        .stage { position: relative; display: flex; flex-direction: column; align-items: center; }
+        
+        .wheel-outer-ring {
+            padding: 20px; border-radius: 50%;
+            background: linear-gradient(145deg, #111, #000);
+            box-shadow: 0 0 100px rgba(0,0,0,0.9), 0 0 30px rgba(62, 130, 255, 0.2);
+            position: relative; border: 4px solid #1a1a1a;
+        }
+        
+        canvas { border-radius: 50%; transition: transform 7s cubic-bezier(0.1, 0, 0, 1); cursor: default; }
+
+        .pointer {
+            position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 25px solid transparent;
+            border-right: 25px solid transparent; border-top: 55px solid var(--red);
+            z-index: 100; filter: drop-shadow(0 0 15px var(--red));
+        }
+
+        .logo-frame {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 170px; height: 170px; border-radius: 50%; 
+            z-index: 50; overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            border: 4px solid #000;
+        }
+        #center-logo { width: 100%; height: 100%; object-fit: cover; }
+
+        /* --- CONFIG ITEMS --- */
+        .config-item { 
+            background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; 
+            margin-bottom: 12px; border-left: 4px solid var(--blue);
+        }
+        .config-sub-row { display: grid; grid-template-columns: 1fr 1fr 50px 40px; gap: 8px; margin-top: 8px; align-items: end; }
+        
+        label { font-size: 10px; opacity: 0.6; display: block; margin-bottom: 4px; }
+        input { 
+            background: #111; border: 1px solid #333; color: white; 
+            padding: 10px; border-radius: 6px; width: 100%; font-size: 13px; box-sizing: border-box;
+        }
+        input[type="color"] { padding: 2px; height: 40px; cursor: pointer; border: none; }
+        .del-btn { background: #222; color: #ff4d4d; border: 1px solid #444; padding: 10px; border-radius: 6px; cursor: pointer; height: 40px; }
+
+        /* --- SPIN BUTTON --- */
+        #spin-btn {
+            margin-top: 50px; padding: 22px 90px; font-size: 1.4rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 3px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--red), #800000);
+            border: 1px solid rgba(255,255,255,0.2); color: white; cursor: pointer;
+            box-shadow: 0 10px 30px rgba(255, 62, 62, 0.3); transition: 0.4s;
+        }
+        #spin-btn:hover:not(:disabled) { transform: translateY(-5px); background: var(--blue); box-shadow: 0 10px 30px rgba(62, 130, 255, 0.4); }
+        #spin-btn:disabled { opacity: 0.3; filter: grayscale(1); cursor: not-allowed; }
+
+        /* --- MASSIVE WIN MODAL --- */
+        #win-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.98);
+            display: none; justify-content: center; align-items: center; z-index: 2000;
+            backdrop-filter: blur(25px);
+        }
+        .modal-card {
+            background: #050505; 
+            width: 85%;
+            height: 80%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 40px; 
+            text-align: center;
+            border-top: 10px solid var(--red); 
+            border-bottom: 10px solid var(--blue);
+            box-shadow: 0 0 150px rgba(0, 0, 0, 1), 0 0 50px rgba(62, 130, 255, 0.2);
+            padding: 40px;
+        }
+        .modal-card h3 { 
+            font-size: 2rem; 
+            color: var(--red); 
+            margin: 0; 
+            letter-spacing: 15px; 
+            font-weight: 200; 
+            text-transform: uppercase;
+        }
+        .modal-card h1 { 
+            font-size: 8rem; 
+            margin: 40px 0; 
+            text-shadow: 0 0 40px rgba(255,255,255,0.3);
+            font-weight: 900;
+        }
+        .stock-info { color: var(--blue); font-size: 1.5rem; margin-top: -20px; margin-bottom: 40px; font-weight: bold; }
+        .collect-btn {
+            padding: 25px 100px; background: white; color: black; border: none; 
+            border-radius: 15px; cursor: pointer; font-weight: 900; font-size: 2rem;
+            transition: 0.3s; text-transform: uppercase;
+        }
+        .collect-btn:hover { background: var(--blue); color: white; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    </div>
+
+    <div class="sidebar" id="sidebar">
+        <h2 style="margin-top:0; color:var(--blue); letter-spacing:2px;">WHEEL ENGINE</h2>
+        <div id="config-list"></div>
+        <button onclick="addPrize()" style="width:100%; padding:15px; margin-top:10px; background:var(--blue); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">+ ADD PRIZE</button>
+    </div>
+
+    <div class="stage">
+        <div class="wheel-outer-ring">
+            <div class="pointer"></div>
+            <div class="logo-frame">
+                <img id="center-logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRTyz1iEvy_no39wgFXon1k32ejA1WTNxpjLQ&s">
+            </div>
+            <canvas id="wheel" width="700" height="700"></canvas>
+        </div>
+        <button id="spin-btn" onclick="spin()">Initialize Spin</button>
+    </div>
+
+    <div id="win-modal">
+        <div class="modal-card">
+            <h3>YOU'VE WON!</h3>
+            <h1 id="win-prize-name">JACKPOT</h1>
+            <div id="modal-stock-left" class="stock-info"></div>
+            <p style="color:#666; font-size: 1.2rem; margin-bottom: 60px; text-transform: uppercase; letter-spacing: 5px;">Secure Asset Transfer Complete</p>
+            <button class="collect-btn" onclick="document.getElementById('win-modal').style.display='none'">Confirm</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spin-btn');
+        let currentRotation = 0;
+
+        let prizes = [
+            { label: '₱1000', color: '#ff3e3e', chance: 1.16, stock: 1 },
+            { label: '₱500', color: '#3e82ff', chance: 2.32, stock: 2 },
+            { label: '₱400', color: '#0a0a0c', chance: 4.62, stock: 4 },
+            { label: '₱300', color: '#800000', chance: 8.67, stock: 15 },
+            { label: '₱200', color: '#002666', chance: 39.31, stock: 68 },
+            { label: '₱100', color: '#0a0a0c', chance: 47.98, stock: 83 }
+        ];
+
+        function renderConfig() {
+            const list = document.getElementById('config-list');
+            list.innerHTML = prizes.map((p, i) => `
+                <div class="config-item">
+                    <label style="color:var(--blue); font-weight:bold;">IDENTIFIER</label>
+                    <input type="text" value="${p.label}" oninput="updatePrize(${i}, 'label', this.value)">
+                    <div class="config-sub-row">
+                        <div>
+                            <label>CHANCE</label>
+                            <input type="number" step="0.01" value="${p.chance}" oninput="updatePrize(${i}, 'chance', this.value)">
+                        </div>
+                        <div>
+                            <label>STOCK</label>
+                            <input type="number" value="${p.stock}" oninput="updatePrize(${i}, 'stock', this.value)">
+                        </div>
+                        <div>
+                            <label>HEX</label>
+                            <input type="color" value="${p.color}" oninput="updatePrize(${i}, 'color', this.value)">
+                        </div>
+                        <button class="del-btn" onclick="removePrize(${i})">×</button>
+                    </div>
+                </div>
+            `).join('');
+            draw();
+        }
+
+        function updatePrize(i, key, val) {
+            if (key === 'chance') prizes[i][key] = parseFloat(val) || 0;
+            else if (key === 'stock') prizes[i][key] = parseInt(val) || 0;
+            else prizes[i][key] = val;
+            draw();
+        }
+
+        function addPrize() {
+            prizes.push({ label: 'NEW SECTOR', color: '#333', chance: 10, stock: 10 });
+            renderConfig();
+        }
+
+        function removePrize(i) {
+            prizes.splice(i, 1);
+            renderConfig();
+        }
+
+        function draw() {
+            const activePrizes = prizes.filter(p => p.stock > 0);
+            const cx = 350, cy = 350, r = 350;
+            ctx.clearRect(0, 0, 700, 700);
+
+            if (activePrizes.length === 0) {
+                ctx.fillStyle = "#333";
+                ctx.textAlign = "center";
+                ctx.font = "bold 30px Inter";
+                ctx.fillText("OUT OF STOCK", cx, cy);
+                return;
+            }
+
+            const step = (Math.PI * 2) / activePrizes.length;
+
+            activePrizes.forEach((p, i) => {
+                const angle = i * step;
+                ctx.beginPath();
+                ctx.fillStyle = p.color;
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, r, angle, angle + step);
+                ctx.fill();
+                
+                ctx.strokeStyle = "rgba(255,255,255,0.1)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle + step / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "white";
+                // --- BOLDER & LARGER SLICE TEXT ---
+                ctx.font = "900 40px Inter";
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = "rgba(0,0,0,0.8)";
+                ctx.fillText(p.label.toUpperCase(), r - 40, 15);
+                ctx.restore();
+            });
+        }
+
+        function spin() {
+            const activePrizes = prizes.filter(p => p.stock > 0);
+            if (activePrizes.length === 0) return;
+
+            spinBtn.disabled = true;
+            
+            const totalChance = activePrizes.reduce((s, p) => s + p.chance, 0);
+            const rand = Math.random() * totalChance;
+            let sum = 0, winIdxInActive = 0;
+
+            for (let i = 0; i < activePrizes.length; i++) {
+                sum += activePrizes[i].chance;
+                if (rand <= sum) { winIdxInActive = i; break; }
+            }
+
+            const winner = activePrizes[winIdxInActive];
+            const stepDeg = 360 / activePrizes.length;
+            const targetCenter = 270 - (winIdxInActive * stepDeg + stepDeg / 2);
+            
+            currentRotation += (360 * 10) + (targetCenter - (currentRotation % 360));
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+            
+            setTimeout(() => {
+                confetti({ 
+                    particleCount: 400, 
+                    spread: 120, 
+                    origin: { y: 0.5 }, 
+                    colors: ['#ff3e3e', '#3e82ff', '#ffffff'] 
+                });
+
+                winner.stock--;
+                
+                document.getElementById('win-prize-name').innerText = winner.label.toUpperCase();
+                document.getElementById('modal-stock-left').innerText = `REMAINING STOCK: ${winner.stock}`;
+                document.getElementById('win-modal').style.display = 'flex';
+                
+                spinBtn.disabled = false;
+                renderConfig(); 
+            }, 7200);
+        }
+
+        renderConfig();
+    </script>
+</body>
+</html>
